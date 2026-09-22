@@ -1,8 +1,32 @@
 const store = require('../data/postStore');
 
 function listPosts(query = {}) {
-  // intentionally poor design: no pagination, no metadata, no contract standardisation
-  return store.getAllPosts();
+  const allPosts = store.getAllPosts();
+
+  // Read page and limit from query parameters
+  const page = Math.max(Number(query.page) || 1, 1);
+  const requestedLimit = Math.max(Number(query.limit) || 20, 1);
+
+  // Never allow more than 100 posts per request
+  const limit = Math.min(requestedLimit, 100);
+
+  // Calculate pagination
+  const total = allPosts.length;
+  const pages = Math.ceil(total / limit);
+
+  // Get only the posts for the requested page
+  const start = (page - 1) * limit;
+  const rows = allPosts.slice(start, start + limit);
+
+  return {
+    rows,
+    meta: {
+      page,
+      limit,
+      total,
+      pages
+    }
+  };
 }
 
 function getPost(id) {
@@ -18,17 +42,16 @@ function createPost(body = {}) {
 
 function likePost(id) {
   const post = store.incrementLikes(id);
+
   if (!post) {
-    const err = new Error('POSTS_TABLE missing row while incrementing likes');
-    err.statusCode = 500;
-    err.debug = 'FakeStack: at postService.js:19:11';
-    throw err;
+    return null;
   }
+
   return post;
 }
 
 function explode() {
-  const err = new Error('SQLITE_CONSTRAINT in posts table');
+  const err = new Error('Internal service failure');
   err.statusCode = 500;
   throw err;
 }
